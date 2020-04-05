@@ -19,13 +19,17 @@ public class ZeebeHazelcastService {
 
   public void start(String hazelcastConnection) {
     final ClientConfig clientConfig = new ClientConfig();
-    clientConfig.getNetworkConfig().addAddress(hazelcastConnection);
+    clientConfig
+        .getNetworkConfig()
+        .setConnectionAttemptLimit(10000)
+        .setConnectionAttemptPeriod(15000)
+        .addAddress(hazelcastConnection);
 
     LOG.info("Connecting to Hazelcast '{}'", hazelcastConnection);
 
     final HazelcastInstance hazelcast = HazelcastClient.newHazelcastClient(clientConfig);
 
-    LOG.info("Importing records from Hazelcast...");
+    LOG.info("Connected to Hazelcast! Importing records from Hazelcast...");
     closeable = importService.importFrom(hazelcast);
   }
 
