@@ -1,6 +1,5 @@
 .idea
 target/*
-!target/*.jar
 .classpath
 .checkstyle
 .project

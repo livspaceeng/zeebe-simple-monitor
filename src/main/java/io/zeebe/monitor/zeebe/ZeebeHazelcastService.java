@@ -1,0 +1,50 @@
+package io.zeebe.monitor.zeebe;
+
+import com.hazelcast.client.HazelcastClient;
+import com.hazelcast.client.config.ClientConfig;
+import com.hazelcast.core.HazelcastInstance;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+
+@Component
+public class ZeebeHazelcastService {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ZeebeHazelcastService.class);
+
+  @Value("${zeebe.worker.hazelcast.connection}")
+  private String hazelcastConnection;
+
+  @Autowired private ZeebeImportService importService;
+
+  private AutoCloseable closeable;
+
+  @PostConstruct
+  public void start() {
+    final ClientConfig clientConfig = new ClientConfig();
+    clientConfig
+        .getNetworkConfig()
+        .setConnectionAttemptLimit(1000)
+        .setConnectionAttemptPeriod(15000)
+        .addAddress(hazelcastConnection);
+
+    LOG.info("Connecting to Hazelcast '{}'", hazelcastConnection);
+
+    final HazelcastInstance hazelcast = HazelcastClient.newHazelcastClient(clientConfig);
+
+    LOG.info("Connected to Hazelcast! Importing records from Hazelcast...");
+    closeable = importService.importFrom(hazelcast);
+  }
+
+  @PreDestroy
+  public void close() throws Exception {
+    if (closeable != null) {
+      closeable.close();
+    }
+  }
+}
