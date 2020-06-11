@@ -37,6 +37,7 @@ import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -46,6 +47,9 @@ import java.util.function.Function;
 @Component
 public class ZeebeImportService {
 
+  @Value("${zeebe.client.worker.hazelcast.ringbuffer}")
+  private String ringbufferName;
+    
   @Autowired private WorkflowRepository workflowRepository;
   @Autowired private WorkflowInstanceRepository workflowInstanceRepository;
   @Autowired private ElementInstanceRepository elementInstanceRepository;
@@ -77,6 +81,7 @@ public class ZeebeImportService {
 
     final var builder =
         ZeebeHazelcast.newBuilder(hazelcast)
+            .name(ringbufferName)
             .addDeploymentListener(
                 record ->
                     withKey(record, Schema.DeploymentRecord::getMetadata, this::importDeployment))
@@ -167,9 +172,9 @@ public class ZeebeImportService {
   private void importWorkflowInstance(final Schema.WorkflowInstanceRecord record) {
     if (record.getWorkflowInstanceKey() == record.getMetadata().getKey()) {
       addOrUpdateWorkflowInstance(record);
-    } else {
-      addElementInstance(record);
     }
+
+    addElementInstance(record);
   }
 
   private void addOrUpdateWorkflowInstance(final Schema.WorkflowInstanceRecord record) {

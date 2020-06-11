@@ -1,18 +1,21 @@
 zeebe:
 
-  worker:
-    hazelcast:
-      connection: localhost:5701
+  client:
 
-#  client:
 #    broker.contactPoint: 127.0.0.1:26500
 #    security.plaintext: true
+
+    worker:
+      hazelcast:
+        connection: localhost:5701
+        connectionTimeout: PT10H
+        ringbuffer: zeebe
 
 spring:
 
   datasource:
     url: jdbc:h2:mem:zeebe-monitor;DB_CLOSE_DELAY=-1
-    user: sa
+    username: sa
     password:
     driverClassName: org.h2.Driver
 

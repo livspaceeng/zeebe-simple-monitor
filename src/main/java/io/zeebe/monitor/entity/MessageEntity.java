@@ -18,6 +18,7 @@ package io.zeebe.monitor.entity;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
+import javax.persistence.Lob;
 
 @Entity(name = "MESSAGE")
 public class MessageEntity {
@@ -35,7 +36,7 @@ public class MessageEntity {
   @Column(name = "MESSAGE_ID_")
   private String messageId;
 
-  @Column(name = "PAYLOAD_")
+  @Column(name = "PAYLOAD_", columnDefinition="TEXT")
   private String payload;
 
   @Column(name = "STATE_")
