@@ -35,7 +35,11 @@ import io.zeebe.protocol.record.intent.MessageStartEventSubscriptionIntent;
 import io.zeebe.protocol.record.intent.MessageSubscriptionIntent;
 import io.zeebe.protocol.record.intent.TimerIntent;
 import io.zeebe.protocol.record.intent.WorkflowInstanceIntent;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -45,6 +49,9 @@ import java.util.function.Function;
 @Component
 public class ZeebeImportService {
 
+  @Value("${zeebe.client.worker.hazelcast.ringbuffer}")
+  private String ringbufferName;
+    
   @Autowired private WorkflowRepository workflowRepository;
   @Autowired private WorkflowInstanceRepository workflowInstanceRepository;
   @Autowired private ElementInstanceRepository elementInstanceRepository;
@@ -59,6 +66,8 @@ public class ZeebeImportService {
   @Autowired private ZeebeNotificationService notificationService;
 
   @Autowired private HazelcastConfigRepository hazelcastConfigRepository;
+
+  private final static Logger LOGGER = LoggerFactory.getLogger(ZeebeImportService.class);
 
   public ZeebeHazelcast importFrom(HazelcastInstance hazelcast) {
 
@@ -75,6 +84,7 @@ public class ZeebeImportService {
 
     final var builder =
         ZeebeHazelcast.newBuilder(hazelcast)
+            .name(ringbufferName)
             .addDeploymentListener(
                 record ->
                     withKey(record, Schema.DeploymentRecord::getMetadata, this::importDeployment))
@@ -129,9 +139,15 @@ public class ZeebeImportService {
     final DeploymentIntent intent = DeploymentIntent.valueOf(record.getMetadata().getIntent());
     final int partitionId = record.getMetadata().getPartitionId();
 
-    if (intent != DeploymentIntent.CREATED || partitionId != Protocol.DEPLOYMENT_PARTITION) {
-      // ignore deployment event on other partitions to avoid duplicates
-      return;
+    LOGGER.debug("Importing Deployment Record: {} from partition# {} with intent: {}",
+		record.getMetadata().getKey(), partitionId, intent);
+    LOGGER.debug("Protocol.DEPLOYMENT_PARTITION: ", Protocol.DEPLOYMENT_PARTITION);
+	
+    if (intent != DeploymentIntent.CREATED /*|| partitionId != Protocol.DEPLOYMENT_PARTITION*/) {
+        // ignore deployment event on other partitions to avoid duplicates
+        LOGGER.debug("Ignoring Deployment Record: {} from partition# {} with intent: {}",
+		record.getMetadata().getKey(), partitionId, intent);
+        return;
     }
 
     record
@@ -148,7 +164,11 @@ public class ZeebeImportService {
                         entity.setVersion(deployedWorkflow.getVersion());
                         entity.setResource(resource.getResource().toStringUtf8());
                         entity.setTimestamp(record.getMetadata().getTimestamp());
+                        LOGGER.debug("Saving Deployment Entity: {} of Type: {}",
+                        	entity.getKey(), entity.getBpmnProcessId());
                         workflowRepository.save(entity);
+                        LOGGER.debug("Saved Deployment Entity: {} of Type: {}",
+                        	entity.getKey(), entity.getBpmnProcessId());
                       });
             });
   }
@@ -166,6 +186,8 @@ public class ZeebeImportService {
     final Intent intent = WorkflowInstanceIntent.valueOf(record.getMetadata().getIntent());
     final long timestamp = record.getMetadata().getTimestamp();
     final long workflowInstanceKey = record.getWorkflowInstanceKey();
+    LOGGER.debug("Importing WF Instance Record: {} of type: {} with intent: {}",
+	workflowInstanceKey, record.getBpmnProcessId(), intent);
 
     final WorkflowInstanceEntity entity =
         workflowInstanceRepository
@@ -186,31 +208,45 @@ public class ZeebeImportService {
     if (intent == WorkflowInstanceIntent.ELEMENT_ACTIVATED) {
       entity.setState("Active");
       entity.setStart(timestamp);
+      LOGGER.debug("Saving WF Instance Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnProcessId());
       workflowInstanceRepository.save(entity);
 
       notificationService.sendCreatedWorkflowInstance(
           record.getWorkflowInstanceKey(), record.getWorkflowKey());
+      LOGGER.debug("Saved and Published WF Instance Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnProcessId());
 
     } else if (intent == WorkflowInstanceIntent.ELEMENT_COMPLETED) {
       entity.setState("Completed");
       entity.setEnd(timestamp);
+      LOGGER.debug("Saving WF Instance Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnProcessId());
       workflowInstanceRepository.save(entity);
 
       notificationService.sendEndedWorkflowInstance(
           record.getWorkflowInstanceKey(), record.getWorkflowKey());
+      LOGGER.debug("Saved and Published WF Instance Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnProcessId());
 
     } else if (intent == WorkflowInstanceIntent.ELEMENT_TERMINATED) {
       entity.setState("Terminated");
       entity.setEnd(timestamp);
+      LOGGER.debug("Saving WF Instance Entity: {} of Type: {}",
+      	  entity.getKey(), entity.getBpmnProcessId());
       workflowInstanceRepository.save(entity);
 
       notificationService.sendEndedWorkflowInstance(
           record.getWorkflowInstanceKey(), record.getWorkflowKey());
+      LOGGER.debug("Saved and Published WF Instance Entity: {} of Type: {}",
+      	  entity.getKey(), entity.getBpmnProcessId());
     }
   }
 
   private void addElementInstance(final Schema.WorkflowInstanceRecord record) {
 
+    LOGGER.debug("Importing Element Instance Record: {} of Type: {}",
+		record.getElementId(), record.getBpmnElementType());
     final long position = record.getMetadata().getPosition();
     if (!elementInstanceRepository.existsById(position)) {
 
@@ -226,10 +262,14 @@ public class ZeebeImportService {
       entity.setWorkflowKey(record.getWorkflowKey());
       entity.setBpmnElementType(record.getBpmnElementType().name());
 
+      LOGGER.debug("Saving Element Instance Entity: {} of Type: {}",
+      	  entity.getKey(), entity.getBpmnElementType());
       elementInstanceRepository.save(entity);
 
       notificationService.sendWorkflowInstanceUpdated(
           record.getWorkflowInstanceKey(), record.getWorkflowKey());
+      LOGGER.debug("Saved and Published Element Instance Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnElementType());
     }
   }
 
@@ -238,6 +278,8 @@ public class ZeebeImportService {
     final IncidentIntent intent = IncidentIntent.valueOf(record.getMetadata().getIntent());
     final long key = record.getMetadata().getKey();
     final long timestamp = record.getMetadata().getTimestamp();
+    LOGGER.debug("Importing Incident Record: {} of Type: {}",
+	key, record.getBpmnProcessId());
 
     final IncidentEntity entity =
         incidentRepository
@@ -258,11 +300,19 @@ public class ZeebeImportService {
 
     if (intent == IncidentIntent.CREATED) {
       entity.setCreated(timestamp);
+      LOGGER.debug("Saving Incident Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnProcessId());
       incidentRepository.save(entity);
+      LOGGER.debug("Saved Incident Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnProcessId());
 
     } else if (intent == IncidentIntent.RESOLVED) {
       entity.setResolved(timestamp);
+      LOGGER.debug("Saving Incident Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnProcessId());
       incidentRepository.save(entity);
+      LOGGER.debug("Saved Incident Entity: {} of Type: {}",
+          entity.getKey(), entity.getBpmnProcessId());
     }
   }
 
@@ -271,6 +321,8 @@ public class ZeebeImportService {
     final JobIntent intent = JobIntent.valueOf(record.getMetadata().getIntent());
     final long key = record.getMetadata().getKey();
     final long timestamp = record.getMetadata().getTimestamp();
+    LOGGER.debug("Importing Job Record: {} of Type: {}",
+	key, record.getWorker());
 
     final JobEntity entity =
         jobRepository
@@ -289,7 +341,11 @@ public class ZeebeImportService {
     entity.setTimestamp(timestamp);
     entity.setWorker(record.getWorker());
     entity.setRetries(record.getRetries());
+    LOGGER.debug("Saving Job Entity: {} of Type: {}",
+            entity.getKey(), entity.getWorker());
     jobRepository.save(entity);
+    LOGGER.debug("Saved Job Entity: {} of Type: {}",
+            entity.getKey(), entity.getWorker());
   }
 
   private void importMessage(final Schema.MessageRecord record) {
@@ -297,6 +353,8 @@ public class ZeebeImportService {
     final MessageIntent intent = MessageIntent.valueOf(record.getMetadata().getIntent());
     final long key = record.getMetadata().getKey();
     final long timestamp = record.getMetadata().getTimestamp();
+    LOGGER.debug("Importing Message Record: {} of Type: {}",
+	key, record.getName());
 
     final MessageEntity entity =
         messageRepository
@@ -314,7 +372,11 @@ public class ZeebeImportService {
 
     entity.setState(intent.name().toLowerCase());
     entity.setTimestamp(timestamp);
+    LOGGER.debug("Saving Message Entity: {} of Type: {}",
+        	entity.getKey(), entity.getName());
     messageRepository.save(entity);
+    LOGGER.debug("Saved Message Entity: {} of Type: {}",
+        	entity.getKey(), entity.getName());
   }
 
   private void importMessageSubscription(final Schema.MessageSubscriptionRecord record) {
@@ -322,6 +384,8 @@ public class ZeebeImportService {
     final MessageSubscriptionIntent intent =
         MessageSubscriptionIntent.valueOf(record.getMetadata().getIntent());
     final long timestamp = record.getMetadata().getTimestamp();
+    LOGGER.debug("Importing Message Subscription Record: {} of Type: {}",
+	record.getElementInstanceKey(), record.getMessageName());
 
     final MessageSubscriptionEntity entity =
         messageSubscriptionRepository
@@ -341,7 +405,11 @@ public class ZeebeImportService {
 
     entity.setState(intent.name().toLowerCase());
     entity.setTimestamp(timestamp);
+    LOGGER.debug("Saving Message Subscription Entity: {} of Type: {}",
+        	entity.getId(), entity.getMessageName());
     messageSubscriptionRepository.save(entity);
+    LOGGER.debug("Saved Message Subscription Entity: {} of Type: {}",
+        	entity.getId(), entity.getMessageName());
   }
 
   private void importMessageStartEventSubscription(
@@ -350,6 +418,8 @@ public class ZeebeImportService {
     final MessageStartEventSubscriptionIntent intent =
         MessageStartEventSubscriptionIntent.valueOf(record.getMetadata().getIntent());
     final long timestamp = record.getMetadata().getTimestamp();
+    LOGGER.debug("Importing Message Start Event Record: {} of Type: {}",
+	record.getStartEventId(), record.getMessageName());
 
     final MessageSubscriptionEntity entity =
         messageSubscriptionRepository
@@ -367,7 +437,11 @@ public class ZeebeImportService {
 
     entity.setState(intent.name().toLowerCase());
     entity.setTimestamp(timestamp);
+    LOGGER.debug("Saving Message Start Event Entity: {} of Type: {}",
+        	entity.getId(), entity.getMessageName());
     messageSubscriptionRepository.save(entity);
+    LOGGER.debug("Saved Message Start Event Entity: {} of Type: {}",
+        	entity.getId(), entity.getMessageName());
   }
 
   private void importTimer(final Schema.TimerRecord record) {
@@ -375,6 +449,8 @@ public class ZeebeImportService {
     final TimerIntent intent = TimerIntent.valueOf(record.getMetadata().getIntent());
     final long key = record.getMetadata().getKey();
     final long timestamp = record.getMetadata().getTimestamp();
+    LOGGER.debug("Importing Timer Record: {} of Type: {}",
+	key, record.getWorkflowInstanceKey());
 
     final TimerEntity entity =
         timerRepository
@@ -398,11 +474,17 @@ public class ZeebeImportService {
 
     entity.setState(intent.name().toLowerCase());
     entity.setTimestamp(timestamp);
+    LOGGER.debug("Saving Timer Entity: {} of Type: {}",
+        entity.getKey(), entity.getWorkflowInstanceKey());
     timerRepository.save(entity);
+    LOGGER.debug("Saved Timer Entity: {} of Type: {}",
+        entity.getKey(), entity.getWorkflowInstanceKey());
   }
 
   private void importVariable(final Schema.VariableRecord record) {
 
+    LOGGER.debug("Importing Variable Record: {} of Type: {}",
+  	record.getValue(), record.getName());
     final long position = record.getMetadata().getPosition();
     if (!variableRepository.existsById(position)) {
 
@@ -414,7 +496,11 @@ public class ZeebeImportService {
       entity.setValue(record.getValue());
       entity.setScopeKey(record.getScopeKey());
       entity.setState(record.getMetadata().getIntent().toLowerCase());
+      LOGGER.debug("Saving Variable Entity: {} of Type: {}",
+      	entity.getValue(), entity.getName());
       variableRepository.save(entity);
+      LOGGER.debug("Saved Variable Entity: {} of Type: {}",
+      	entity.getValue(), entity.getName());
     }
   }
 

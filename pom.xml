@@ -75,6 +75,13 @@
                 <version>1.4.200</version>
             </dependency>
 
+			<dependency>
+				<groupId>org.postgresql</groupId>
+				<artifactId>postgresql</artifactId>
+				<version>42.2.8</version>
+				<type>bundle</type>
+			</dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -116,6 +123,11 @@
             <groupId>io.zeebe.hazelcast</groupId>
             <artifactId>zeebe-hazelcast-connector</artifactId>
         </dependency>
+
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+		</dependency>
 
         <dependency>
             <groupId>com.hazelcast</groupId>
@@ -341,5 +353,4 @@
         <developerConnection>scm:git:git@github.com:zeebe-io/zeebe-simple-monitor.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
-
 </project>

@@ -32,8 +32,7 @@ public class WorkflowEntity {
   @Column(name = "VERSION_")
   private int version;
 
-  @Lob
-  @Column(name = "RESOURCE_")
+  @Column(name = "RESOURCE_", columnDefinition="TEXT")
   private String resource;
 
   @Column(name = "TIMESTAMP_")

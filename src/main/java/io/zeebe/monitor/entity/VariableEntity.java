@@ -30,8 +30,7 @@ public class VariableEntity {
   @Column(name = "NAME_")
   private String name;
 
-  @Column(name = "VALUE_")
-  @Lob
+  @Column(name = "VALUE_", columnDefinition="TEXT")
   private String value;
 
   @Column(name = "WORKFLOW_INSTANCE_KEY_")

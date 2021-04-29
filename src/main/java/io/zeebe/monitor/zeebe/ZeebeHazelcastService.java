@@ -35,14 +35,17 @@ public class ZeebeHazelcastService {
 
     final var connectionRetryConfig =
         clientConfig.getConnectionStrategyConfig().getConnectionRetryConfig();
-    connectionRetryConfig.setClusterConnectTimeoutMillis(
-        Duration.parse(hazelcastConnectionTimeout).toMillis());
+    connectionRetryConfig
+        .setClusterConnectTimeoutMillis(Duration.parse(hazelcastConnectionTimeout).toMillis())
+        .setInitialBackoffMillis(15000)
+        .setMultiplier(2)
+        .setMaxBackoffMillis(60000);
 
     LOG.info("Connecting to Hazelcast '{}'", hazelcastConnection);
 
     final HazelcastInstance hazelcast = HazelcastClient.newHazelcastClient(clientConfig);
 
-    LOG.info("Importing records from Hazelcast...");
+    LOG.info("Connected to Hazelcast! Importing records from Hazelcast...");
     closeable = importService.importFrom(hazelcast);
   }
 

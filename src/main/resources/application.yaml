@@ -1,14 +1,15 @@
 zeebe:
 
-
   client:
-    broker.contactPoint: 127.0.0.1:26500
-    security.plaintext: true
+
+#    broker.contactPoint: 127.0.0.1:26500
+#    security.plaintext: true
 
     worker:
       hazelcast:
         connection: localhost:5701
-        connectionTimeout: PT30S
+        connectionTimeout: PT10H
+        ringbuffer: zeebe
 
 spring:
 
