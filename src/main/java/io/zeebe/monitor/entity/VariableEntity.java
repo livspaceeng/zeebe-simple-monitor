@@ -30,6 +30,7 @@ public class VariableEntity {
   @Column(name = "NAME_")
   private String name;
 
+  @Lob
   @Column(name = "VALUE_", columnDefinition="TEXT")
   private String value;
 

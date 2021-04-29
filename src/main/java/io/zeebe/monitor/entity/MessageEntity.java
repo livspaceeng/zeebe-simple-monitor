@@ -37,6 +37,7 @@ public class MessageEntity {
   private String messageId;
 
   @Column(name = "PAYLOAD_", columnDefinition="TEXT")
+  @Lob
   private String payload;
 
   @Column(name = "STATE_")

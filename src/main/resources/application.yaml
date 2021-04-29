@@ -3,7 +3,7 @@ zeebe:
   client:
 
 #    broker.contactPoint: 127.0.0.1:26500
-#    security.plaintext: true
+    security.plaintext: true
 
     worker:
       hazelcast:

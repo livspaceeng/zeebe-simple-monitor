@@ -46,6 +46,7 @@ public class IncidentEntity {
   private String errorType;
 
   @Column(name = "ERROR_MSG_", columnDefinition="TEXT")
+  @Lob
   private String errorMessage;
 
   @Column(name = "CREATED_")
